@@ -16,7 +16,7 @@ let browser;
     browser = await puppeteer.launch({
         //设置有头模式（默认为true，无头模式）
         headless: true,
-        devtools: true,
+        // devtools: true,
         args: [
             '--disable-gpu',
             '--disable-dev-shm-usage',
@@ -62,15 +62,10 @@ async function onRequest(req, res) {
         try {
             await page.setRequestInterception(true);
             page.on('request', async req => {
-                if (/.(jpg|png|jpeg)$/.test(req.url())) {
-                    await req.respond({
-                        status: 200,
-                        headers: {'Access-Control-Allow-Origin': '*',},
-                        contentType: 'application/json; charset=utf-8',
-                        body: '',
-                    });
-                } else {
-                    await req.continue();
+                if(['image', 'media', 'eventsource','css', 'websocket'].includes(req.resourceType())){
+                    await req.abort()
+                }else{
+                    await req.continue()
                 }
             });
             //打开指定页面
