@@ -8,6 +8,7 @@ const guid = () => {
     function S4() {
         return (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1)
     }
+
     return (S4() + S4() + '-' + S4() + '-' + S4() + '-' + S4() + '-' + S4() + S4() + S4())
 }
 let browser;
@@ -15,8 +16,9 @@ let browser;
     //创建一个Browser（浏览器）实例
     browser = await puppeteer.launch({
         //设置有头模式（默认为true，无头模式）
-        headless: true,
-        // devtools: true,
+       /* headless: false,
+        devtools: true,*/
+        headless:true,
         args: [
             '--disable-gpu',
             '--disable-dev-shm-usage',
@@ -62,9 +64,9 @@ async function onRequest(req, res) {
         try {
             await page.setRequestInterception(true);
             page.on('request', async req => {
-                if(['image', 'media', 'eventsource','css', 'websocket'].includes(req.resourceType())){
+                if (['image', 'media', 'eventsource', 'css', 'websocket'].includes(req.resourceType())) {
                     await req.abort()
-                }else{
+                } else {
                     await req.continue()
                 }
             });
@@ -91,86 +93,105 @@ async function onRequest(req, res) {
 
             const result = await page.evaluate(async (params) => {
                 const {$} = window
-
-               async function formatSelector(str, reg) {
-                    reg = new RegExp(reg)
+                const jqueryReg = '@$@'
+                const resultReg = '@=@'
+                const runSrciptReg = 'javascript:'
+                const parenthesisReg = /\((.+?)\)/g;
+                async function formatSelector(str, reg) {
+                    reg = new RegExp(reg || "【@(.*)@】")
                     const attrList = (str.match(reg)[1] || '').split('|')
                     const cls = str.replace(reg, '')
                     return {cls, attrList}
                 }
 
-               async function formatData(dom, attrList = []) {
+                async function formatData(dom, attrList = []) {
                     let data = {}
                     const d = $(dom)
                     if (attrList.length === 1) {
-                        data =await executeMethods(attrList[0])
+                        data = await executeMethods(attrList[0])
                     } else {
-                        await Promise.all(attrList.map(async v=>{
-                            data[v] =await executeMethods(v)
+                        await Promise.all(attrList.map(async v => {
+                            data[v] = await executeMethods(v)
                         }))
                     }
-                  async function executeMethods(key) {
-                        const reg = 'javascript:'
-                        const jqueryReg = '@$@'
-                        if (key.indexOf(reg) >= 0) {
-                            return (new Function('data', key.replace(reg, '')))({d})
+
+                    async function executeMethods(key) {
+                        if (key.indexOf(runSrciptReg) >= 0) {
+                            return (new Function('data', key.replace(runSrciptReg, '')))({d})
                         } else if (key.indexOf(jqueryReg) >= 0) {
                             const [fun, value] = key.split(jqueryReg)
                             if (fun && value && d[fun]) {
                                 return d[fun](value)
                             }
-                        }else {
+                        } else {
                             return dom[key]
                         }
-                  // else if(key==='clickGetHref'){
-                  //         // dom.click()
-                  //         const guid = await window.guid()
-                  //         dom.setAttribute('guid',guid)
-                  //         await window.getClickHref(guid)
-                  //     }
-                  }
+                        // else if(key==='clickGetHref'){
+                        //         // dom.click()
+                        //         const guid = await window.guid()
+                        //         dom.setAttribute('guid',guid)
+                        //         await window.getClickHref(guid)
+                        //     }
+                    }
 
                     return data
                 }
 
-                async function getParamsDom(obj={},parentCls) {
+                async function getParamsDom(obj = {}, parentCls) {
                     const data = {}
                     if (parentCls) {
-                        return  await Promise.all($(parentCls).map(async(i,v)=>{
+                        return (await Promise.all($(parentCls).map(async (i, v) => {
                             const info = {}
-                            await Promise.all(Object.keys(obj).map(async k=>{
-                                if(k==='parentCls')return
-                                if(typeof obj[k] === 'string'){
-                                    const {cls,attrList}=await formatSelector(obj[k],obj.reg|| params.reg)
-                                    info[k]=await formatData($(v).find(cls)[0],attrList)
-                                }else{
-                                    let parent = v
-                                    if(obj[k].parentCls){
-                                        parent  =$(v).find(obj[k].parentCls)
+                            let filter = false
+                            await Promise.all(Object.keys(obj).map(async k => {
+                                const ignoreKeys = ['filter']
+                                if (k === 'parentCls' || ignoreKeys.includes(k)) return
+                                if (typeof obj[k] === 'string') {
+                                    const {cls, attrList} = await formatSelector(obj[k], obj.reg || params.reg)
+                                    const isFilter = () => {
+                                        const [funStr = '', result] = obj.filter.split(resultReg)
+                                        let dom = $(v).find(cls)
+                                        funStr.split(jqueryReg).forEach(v => {
+                                            const fun = v.replace(parenthesisReg,'')
+                                            let value = v.match(parenthesisReg)[0]
+                                            value =value.substring(1, value.length - 1)
+                                            dom = dom[fun](value)
+                                        })
+                                        console.log(String(dom), result)
+                                        return String(dom).indexOf(result) >= 0
                                     }
-                                    if(!parent)return;
-                                    info[k]=await getParamsDom(obj[k],parent)
+                                    filter = !(obj.filter && isFilter())
+                                    info[k] = await formatData($(v).find(cls)[0], attrList)
+                                } else {
+                                    let parent = v
+                                    if (obj[k].parentCls) {
+                                        parent = $(v).find(obj[k].parentCls)
+                                    }
+                                    if (!parent) return;
+                                    info[k] = await getParamsDom(obj[k], parent)
                                 }
                             }))
-                            return info
-                        }))
+                            return filter ? info : null
+                        }))).filter(v => v)
                     } else {
-                       await Promise.all(Object.keys(obj).map(async v => {
-                           let info = obj[v] || {}
-                           if (typeof info === 'string') {
-                               const ignoreKeys = ['url', 'reg']
-                               if (ignoreKeys.indexOf(v) >= 0) {
-                                   return
-                               }
-                               const {cls, attrList} =await formatSelector(info, obj.reg || params.reg)
-                               data[v] = (await Promise.all($(cls).map((i) => formatData($(cls)[i], attrList))))
-                           } else {
-                               data[v] =await getParamsDom(info,info.parentCls)
-                           }
-                       }))
+                        await Promise.all(Object.keys(obj).map(async v => {
+                            let info = obj[v] || {}
+                            if (typeof info === 'string') {
+                                const ignoreKeys = ['url', 'reg', 'filter']
+                                if (ignoreKeys.indexOf(v) >= 0) {
+                                    return
+                                }
+                                const {cls, attrList} = await formatSelector(info, obj.reg || params.reg)
+                                const list = (await Promise.all($(cls).map((i) => formatData($(cls)[i], attrList))))
+                                data[v] = list.length === 1 ? list[0] : list
+                            } else {
+                                data[v] = await getParamsDom(info, info.parentCls)
+                            }
+                        }))
                     }
                     return data
                 }
+
                 return await getParamsDom(params);
             }, params);
 
