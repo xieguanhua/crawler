@@ -74,8 +74,10 @@ async function onRequest(req, res) {
             const pageUrl = params.url.replace('pageNumberReg', params.pageNumber || 1)
             delete params.pageNumber
             await page.setBypassCSP(true)
-            await page.goto(pageUrl);
-
+            await page.goto(pageUrl,{
+                waitUntil: "networkidle0",
+            });
+            //等待页面加载
             await page.exposeFunction('guid', () => guid());
 
             // await page.exposeFunction('getClickHref', async guid => {
