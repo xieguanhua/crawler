@@ -1,6 +1,7 @@
 var http = require('http');
 var url = require('url');
 var path = require('path');
+var request = require('request');
 // 5. 导入querystring模块（用来解析post请求参数）
 var querystring = require('querystring');
 const puppeteer = require("puppeteer");
@@ -58,7 +59,8 @@ async function onRequest(req, res) {
     //将arg参数字符串反序列化为一个对象
     const params = querystring.parse(arg) || {};
     serialize(params)
-    if (match.test(params.url)) {
+    const pageUrl = params.url.replace('pageNumberReg', params.pageNumber || 1)
+    if (match.test(params.url) && !params.dataType) {
         //在浏览器中创建一个新的页面
         const page = await browser.newPage();
         try {
@@ -71,7 +73,7 @@ async function onRequest(req, res) {
                 }
             });
             //打开指定页面
-            const pageUrl = params.url.replace('pageNumberReg', params.pageNumber || 1)
+
             delete params.pageNumber
             await page.setBypassCSP(true)
             await page.goto(pageUrl,{
@@ -159,7 +161,6 @@ async function onRequest(req, res) {
                                             value =value.substring(1, value.length - 1)
                                             dom = dom[fun](value)
                                         })
-                                        console.log(String(dom), result)
                                         return String(dom).indexOf(result) >= 0
                                     }
                                     filter = !(obj.filter && isFilter())
@@ -179,7 +180,7 @@ async function onRequest(req, res) {
                         await Promise.all(Object.keys(obj).map(async v => {
                             let info = obj[v] || {}
                             if (typeof info === 'string') {
-                                const ignoreKeys = ['url', 'reg', 'filter']
+                                const ignoreKeys = ['url', 'reg', 'filter','dataType','pageNumber']
                                 if (ignoreKeys.indexOf(v) >= 0) {
                                     return
                                 }
@@ -205,6 +206,41 @@ async function onRequest(req, res) {
         } finally {
             page.close()
         }
+    }else if(params.dataType === 'json'){
+        const find=(object='', path='')=> {
+            var props = path.split(".");
+            for(let i=0;i<props.length;i++){
+                const p = props[i];
+                object = object[p]||''
+            }
+            return object;
+        }
+        let obj = {}
+        request({url:pageUrl,json:true},  (error, response, body)=> {
+            Object.keys(params).forEach(k=>{
+                const ignoreKeys = ['url', 'reg', 'filter','dataType']
+                if (ignoreKeys.indexOf(k) >= 0) {return}
+                const val =  params[k]
+                const data = val.parentCls ? find(body,val.parentCls):params[k]
+                if(Array.isArray(data)){
+                    obj[k]=  data.map(v=>{
+                        const data = {}
+                        Object.keys(val).forEach(j=>{
+                            if (j === 'parentCls' || ignoreKeys.includes(k)) return
+                            data[j] = find(v,val[j])
+                        })
+                        return data
+                    })
+                }else if(typeof val === 'string'){
+                    obj[k]= find(data,val)
+                }else{
+                    obj[k]= data
+                }
+            })
+
+            res.end(JSON.stringify(obj))
+        })
+
     } else {
         error(res, "no url found")
     }
