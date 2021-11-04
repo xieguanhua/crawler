@@ -1,3 +1,4 @@
+/*
 var http = require('http');
 var url = require('url');
 var path = require('path');
@@ -17,8 +18,8 @@ let browser;
     //创建一个Browser（浏览器）实例
     browser = await puppeteer.launch({
         //设置有头模式（默认为true，无头模式）
-       /* headless: false,
-        devtools: true,*/
+       /!* headless: false,
+        devtools: true,*!/
         headless:true,
         args: [
             '--disable-gpu',
@@ -253,3 +254,4 @@ function error(res, message) {
     }
     res.end(JSON.stringify(person))
 }
+*/
