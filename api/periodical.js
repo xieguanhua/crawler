@@ -89,9 +89,7 @@ router.get('/puppeteer', async (req, res) => {
     const {query} = req
     const hash = crypto.createHash('sha256').update(JSON.stringify(query)).digest('hex')
     const {url, pageNumber} = query
-
-
-
+    const time = Date.now();
     if (client && await isKeyExists(hash) && !query.clearCache) {
         client.get(hash, (err, data) => {
             if (err) {
@@ -211,7 +209,9 @@ router.get('/puppeteer', async (req, res) => {
 
                 return await getParamsDom(params);
             },queryFilter(query));
-            client.set(hash, JSON.stringify(result), "EX", 3600);//过期时间1小时
+            const ex = Date.now() - time
+            console.log(ex)
+            client.set(hash, JSON.stringify(result), "EX",ex<3600?3600:ex);//过期时间最小1小时
             success(res, result)
         } catch (e) {
             error(res, e.message)
@@ -230,9 +230,9 @@ router.get('/json', async (req, res) => {
         const {url, pageNumber} = query
         const pageUrl = url.replace('pageNumberReg', pageNumber || 1)
        const params = queryFilter(query)
-        request({url: pageUrl, json: true}, (error, response, body) => {
-            if (error) {
-                error(res, error.message)
+        request({url: pageUrl, json: true}, (err, response, body) => {
+            if (err) {
+                error(res, err.message||'未知错误')
             } else if(!Object.keys(params).length){
                 success(res, body)
             }else{
