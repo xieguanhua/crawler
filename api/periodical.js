@@ -230,14 +230,21 @@ router.get('/json', async (req, res) => {
         const {url, pageNumber} = query
         const pageUrl = url.replace('pageNumberReg', pageNumber || 1)
        const params = queryFilter(query)
-        request({url: pageUrl, json: true}, (err, response, body) => {
+        request({url: encodeURI(pageUrl), json: true}, (err, response, body) => {
+
+            //jsonp请求或者字符串变量转化
+            if(params.jsonpName && typeof body === 'string'){
+                body = (new Function('',`let data; function ${params.jsonpName}(val){
+                   data=val
+                };` + body+`;return data ?data:${body}`))()||{}
+            }
             if (err) {
                 error(res, err.message||'未知错误')
             } else if(!Object.keys(params).length){
                 success(res, body)
             }else{
                 Object.keys(params).forEach(k => {
-                    const ignoreKeys = ['url', 'reg', 'filter', 'dataType']
+                    const ignoreKeys = ['url', 'reg', 'filter', 'dataType','jsonpName']
                     if (ignoreKeys.indexOf(k) >= 0) {
                         return
                     }
