@@ -121,6 +121,7 @@ router.get('/puppeteer', async (req, res) => {
                 const jqueryReg = '@$@'
                 const resultReg = '@=@'
                 const parenthesisReg = /\((.+?)\)/g;
+                const runScriptReg = 'script:'
                 //取字段
                 function formatSelector(str) {
                     const reg = new RegExp( "【@(.*)@】")
@@ -162,20 +163,25 @@ router.get('/puppeteer', async (req, res) => {
                                 const ignoreKeys = ['filter']
                                 if (k === 'parentCls' || ignoreKeys.includes(k)) return
                                 if (typeof obj[k] === 'string') {
-                                    const {cls, attrList} = formatSelector(obj[k])
-                                    const isFilter = () => {
-                                        const [funStr = '', result] = obj.filter.split(resultReg)
-                                        let dom = $(v).find(cls)
-                                        funStr.split(jqueryReg).forEach(v => {
-                                            const fun = v.replace(parenthesisReg, '')
-                                            let value = v.match(parenthesisReg)[0]
-                                            value = value.substring(1, value.length - 1)
-                                            dom = dom[fun](value)
-                                        })
-                                        return String(dom).indexOf(result) >= 0
+
+                                    if(!obj[k].indexOf(runScriptReg)){
+                                        info[k] = await (new Function('data', obj[k].replace(runScriptReg, '')))($(v))
+                                    }else{
+                                        const {cls, attrList} = formatSelector(obj[k])
+                                        const isFilter = () => {
+                                            const [funStr = '', result] = obj.filter.split(resultReg)
+                                            let dom = $(v).find(cls)
+                                            funStr.split(jqueryReg).forEach(v => {
+                                                const fun = v.replace(parenthesisReg, '')
+                                                let value = v.match(parenthesisReg)[0]
+                                                value = value.substring(1, value.length - 1)
+                                                dom = dom[fun](value)
+                                            })
+                                            return String(dom).indexOf(result) >= 0
+                                        }
+                                        filter = !(obj.filter && isFilter())
+                                        info[k] = await formatData($(v).find(cls)[0], attrList)
                                     }
-                                    filter = !(obj.filter && isFilter())
-                                    info[k] = await formatData($(v).find(cls)[0], attrList)
                                 } else {
                                     let parent = v
                                     if (obj[k].parentCls) {
@@ -191,7 +197,7 @@ router.get('/puppeteer', async (req, res) => {
                          await Promise.all(Object.keys(obj).map(async v => {
                           let info = obj[v] || {}
                           if (typeof info === 'string') {
-                              const runScriptReg = 'script:'
+
                               if(!info.indexOf(runScriptReg)){
                                   data[v] = await (new Function('data', info.replace(runScriptReg, '')))()
                               }else{
