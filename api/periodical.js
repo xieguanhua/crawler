@@ -138,7 +138,7 @@ router.get('/puppeteer', async (req, res) => {
                                     return d[fun](value)
                                 }
                        } else {
-                          return dom[key]
+                            return (dom||{})[key]
                         }
                     }
                     attrList = Array.isArray(attrList)?attrList:[attrList]
