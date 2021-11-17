@@ -26,7 +26,7 @@ const isKeyExists = (hash) => {
         //设置有头模式（默认为true，无头模式）
         //  headless: false,
         //  devtools: true,
-        headless: true,
+        // headless: true,
         args: [
             '--disable-gpu',
             '--disable-dev-shm-usage',
@@ -222,7 +222,7 @@ router.get('/puppeteer', async (req, res) => {
         } catch (e) {
             error(res, e.message)
         } finally {
-            page.close()
+            // page.close()
         }
     } else {
         error(res, "请填写正确的url")
