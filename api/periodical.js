@@ -4,6 +4,7 @@ const router = express.Router()
 const puppeteer = require("puppeteer");
 const crypto = require('crypto');
 const matchUrlReg = /^((http|https):\/\/)?(([A-Za-z0-9]+-[A-Za-z0-9]+|[A-Za-z0-9]+)\.)+([A-Za-z]+)[/\?\:]?.*$/;
+
 let browser;
 //缓存数据
 const redis = require('redis')
@@ -76,7 +77,7 @@ function error(res, message) {
 //参数过滤爬取需要爬取的数据
 function queryFilter(query){
     const obj = {}
-    const ignoreKeys = ['url','clearCache']
+    const ignoreKeys = ['url','clearCache','setCoding']
     Object.keys(query).forEach(v=>{
         if(ignoreKeys.indexOf(v) < 0){
             obj[v]=  query[v]
@@ -99,7 +100,7 @@ router.get('/puppeteer', async (req, res) => {
             }
         })
     } else if (matchUrlReg.test(url)) {
-        const pageUrl = url.replace('pageNumberReg', pageNumber || 1)
+        const pageUrl = url.replace('pageNumberReg', pageNumber || 1).replace('offsetNumberReg',((pageNumber||1)-1)*30)
         //在浏览器中创建一个新的页面
         const page = await browser.newPage();
         try {
@@ -112,9 +113,11 @@ router.get('/puppeteer', async (req, res) => {
                 }
             });
             await page.setBypassCSP(true)
-            await page.goto(pageUrl, {
+            const response =  await page.goto(pageUrl, {
                 waitUntil: "networkidle2",
             });
+            //避免乱码问题
+            query.setCoding && await page.setContent((await response.buffer()).toString('utf8'));
             await page.mainFrame().addScriptTag({url: 'https://cdn.bootcss.com/jquery/3.2.0/jquery.min.js'})
             const result = await page.evaluate(async (params) => {
                 const {$} = window
