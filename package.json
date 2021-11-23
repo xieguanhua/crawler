@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "server": "nodemon server.js",
+    "server-pm2": "pm2 start ./server.js --watch",
     "dev": "npm run server"
   },
   "keywords": [],
@@ -23,6 +24,7 @@
     "request": "^2.88.2"
   },
   "devDependencies": {
-    "mongoose": "^6.0.12"
+    "mongoose": "^6.0.12",
+    "pm2": "^5.1.2"
   }
 }
