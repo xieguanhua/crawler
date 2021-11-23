@@ -77,7 +77,7 @@ function error(res, message) {
 //参数过滤爬取需要爬取的数据
 function queryFilter(query){
     const obj = {}
-    const ignoreKeys = ['url','clearCache','setCoding']
+    const ignoreKeys = ['url','clearCache','setCoding','allowLoad']
     Object.keys(query).forEach(v=>{
         if(ignoreKeys.indexOf(v) < 0){
             obj[v]=  query[v]
@@ -106,7 +106,7 @@ router.get('/puppeteer', async (req, res) => {
         try {
             await page.setRequestInterception(true);
             page.on('request', async req => {
-                if (['image', 'media', 'eventsource', 'css', 'websocket'].includes(req.resourceType())) {
+                if (['image', 'media', 'eventsource', 'css', 'websocket'].includes(req.resourceType()) && !(query.allowLoad||'').includes(req.resourceType())) {
                     await req.abort()
                 } else {
                     await req.continue()
@@ -114,7 +114,7 @@ router.get('/puppeteer', async (req, res) => {
             });
             await page.setBypassCSP(true)
             const response =  await page.goto(pageUrl, {
-                waitUntil: "networkidle2",
+                waitUntil: "networkidle0",
             });
             //避免乱码问题
             query.setCoding && await page.setContent((await response.buffer()).toString('utf8'));
