@@ -125,6 +125,12 @@ router.get('/puppeteer', async (req, res) => {
                 const resultReg = '@=@'
                 const parenthesisReg = /\((.+?)\)/g;
                 const runScriptReg = 'script:'
+                window.sleep = function (time = 3000) {
+                    return new Promise(resolve => {
+                        setTimeout(resolve, time);
+                    })
+                }
+
                 //取字段
                 function formatSelector(str) {
                     const reg = new RegExp( "【@(.*)@】")
